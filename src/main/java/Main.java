@@ -38,9 +38,17 @@ public class Main {
         ChatCompletionCreateParams.Builder params = ChatCompletionCreateParams.builder()
                 .model("anthropic/claude-haiku-4.5");
 
-        String skillsPrompt = SkillsLoader.systemPrompt();
-        if (!skillsPrompt.isEmpty()) {
-            params.addSystemMessage(skillsPrompt);
+        var invokedBody = SkillsLoader.invokedSkillBody(prompt);
+        if (invokedBody.isPresent()) {
+            // Slash invocation: load only that skill's body (progressive disclosure level 2).
+            params.addSystemMessage(
+                    "The user invoked a skill. Follow these instructions exactly:\n\n"
+                            + invokedBody.get());
+        } else {
+            String skillsPrompt = SkillsLoader.systemPrompt();
+            if (!skillsPrompt.isEmpty()) {
+                params.addSystemMessage(skillsPrompt);
+            }
         }
 
         params.addUserMessage(prompt)

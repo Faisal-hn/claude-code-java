@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class SkillsLoader {
     private static final Path SKILLS_DIR = Path.of(".claude", "skills");
@@ -24,6 +25,58 @@ public final class SkillsLoader {
             prompt.append("\n- ").append(skill.name()).append(": ").append(skill.description());
         }
         return prompt.toString();
+    }
+
+    /**
+     * If the prompt starts with /skill-name, return that skill's SKILL.md body (no frontmatter).
+     */
+    public static Optional<String> invokedSkillBody(String prompt) {
+        String skillName = parseSlashSkillName(prompt);
+        if (skillName == null) {
+            return Optional.empty();
+        }
+        return loadSkillBody(skillName);
+    }
+
+    private static String parseSlashSkillName(String prompt) {
+        String trimmed = prompt.trim();
+        if (!trimmed.startsWith("/")) {
+            return null;
+        }
+        String rest = trimmed.substring(1).trim();
+        if (rest.isEmpty()) {
+            return null;
+        }
+        int space = rest.indexOf(' ');
+        return space < 0 ? rest : rest.substring(0, space);
+    }
+
+    private static Optional<String> loadSkillBody(String skillName) {
+        Path skillMd = Path.of(System.getProperty("user.dir"))
+                .resolve(SKILLS_DIR)
+                .resolve(skillName)
+                .resolve("SKILL.md");
+        if (!Files.isRegularFile(skillMd)) {
+            return Optional.empty();
+        }
+
+        try {
+            String content = Files.readString(skillMd);
+            return Optional.of(extractBody(content));
+        } catch (IOException e) {
+            throw new RuntimeException("failed to read skill: " + skillMd, e);
+        }
+    }
+
+    private static String extractBody(String content) {
+        if (!content.startsWith("---")) {
+            return content.trim();
+        }
+        int end = content.indexOf("---", 3);
+        if (end < 0) {
+            return content.trim();
+        }
+        return content.substring(end + 3).trim();
     }
 
     private static List<Skill> loadSkills() {
