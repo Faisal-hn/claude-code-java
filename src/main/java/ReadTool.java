@@ -44,13 +44,20 @@ public final class ReadTool {
             JsonNode arguments = OBJECT_MAPPER.readTree(function.arguments());
             JsonNode filePathNode = arguments.get(FILE_PATH);
             if (filePathNode == null || !filePathNode.isTextual()) {
-                throw new IllegalArgumentException("missing or invalid file_path argument");
+                return "Error: missing or invalid file_path argument";
             }
-            return Files.readString(Path.of(filePathNode.asText()));
+            Path path = Path.of(filePathNode.asText());
+            if (Files.isDirectory(path)) {
+                return "Error: path is a directory, not a file: " + path;
+            }
+            if (!Files.isRegularFile(path)) {
+                return "Error: file not found: " + path;
+            }
+            return Files.readString(path);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("failed to parse Read tool arguments", e);
+            return "Error: failed to parse Read tool arguments";
         } catch (IOException e) {
-            throw new RuntimeException("failed to read file", e);
+            return "Error: failed to read file: " + e.getMessage();
         }
     }
 
