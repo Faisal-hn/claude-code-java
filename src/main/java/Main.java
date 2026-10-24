@@ -39,7 +39,8 @@ public class Main {
                 .model("anthropic/claude-haiku-4.5")
                 .addUserMessage(prompt)
                 .addTool(ReadTool.tool())
-                .addTool(WriteTool.tool());
+                .addTool(WriteTool.tool())
+                .addTool(BashTool.tool());
 
         while (true) {
             ChatCompletion response = client.chat().completions().create(params.build());
@@ -62,6 +63,7 @@ public class Main {
                 String result = switch (name) {
                     case "Read" -> ReadTool.execute(toolCall);
                     case "Write" -> WriteTool.execute(toolCall);
+                    case "Bash" -> BashTool.execute(toolCall);
                     default -> throw new IllegalArgumentException("unsupported tool: " + name);
                 };
                 params.addMessage(ChatCompletionToolMessageParam.builder()
