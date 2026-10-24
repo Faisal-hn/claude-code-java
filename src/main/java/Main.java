@@ -4,6 +4,7 @@ import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionMessage;
 import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
+import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
 
 import java.util.List;
 
@@ -31,27 +32,37 @@ public class Main {
                 .baseUrl(baseUrl)
                 .build();
 
-        ChatCompletion response = client.chat().completions().create(
-                ChatCompletionCreateParams.builder()
-                        .model("anthropic/claude-haiku-4.5")
-                        .addUserMessage(prompt)
-                        .addTool(ReadTool.tool())
-                        .build()
-        );
-
-        if (response.choices().isEmpty()) {
-            throw new RuntimeException("no choices in response");
-        }
-
         // You can use print statements as follows for debugging, they'll be visible when running tests.
         System.err.println("Logs from your program will appear here!");
 
-        ChatCompletionMessage message = response.choices().get(0).message();
-        List<ChatCompletionMessageToolCall> toolCalls = message.toolCalls().orElse(List.of());
-        if (toolCalls.isEmpty()) {
-            System.out.print(message.content().orElse(""));
-        } else {
-            System.out.print(ReadTool.execute(toolCalls.get(0)));
+        ChatCompletionCreateParams.Builder params = ChatCompletionCreateParams.builder()
+                .model("anthropic/claude-haiku-4.5")
+                .addUserMessage(prompt)
+                .addTool(ReadTool.tool());
+
+        while (true) {
+            ChatCompletion response = client.chat().completions().create(params.build());
+
+            if (response.choices().isEmpty()) {
+                throw new RuntimeException("no choices in response");
+            }
+
+            ChatCompletionMessage message = response.choices().get(0).message();
+            params.addMessage(message);
+
+            List<ChatCompletionMessageToolCall> toolCalls = message.toolCalls().orElse(List.of());
+            if (toolCalls.isEmpty()) {
+                System.out.print(message.content().orElse(""));
+                break;
+            }
+
+            for (ChatCompletionMessageToolCall toolCall : toolCalls) {
+                String result = ReadTool.execute(toolCall);
+                params.addMessage(ChatCompletionToolMessageParam.builder()
+                        .toolCallId(toolCall.id())
+                        .content(result)
+                        .build());
+            }
         }
     }
 }
