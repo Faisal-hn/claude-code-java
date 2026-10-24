@@ -47,9 +47,17 @@ public final class SkillsLoader {
             if (body.isEmpty()) {
                 continue;
             }
-            bodies.add(substituteArguments(body.get(), invocation.arguments(), invocation.positional()));
+            String substituted = substituteArguments(body.get(), invocation.arguments(), invocation.positional());
+            bodies.add(withSkillLocation(skillName, substituted));
         }
         return bodies;
+    }
+
+    private static String withSkillLocation(String skillName, String body) {
+        return "Skill: " + skillName
+                + " (located at .claude/skills/" + skillName + ")\n"
+                + "Paths in the instructions below are relative to that folder.\n\n"
+                + body;
     }
 
     private static StackedInvocation parseStackedInvocation(String prompt) {
