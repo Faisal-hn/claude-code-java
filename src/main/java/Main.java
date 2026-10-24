@@ -43,9 +43,16 @@ public class Main {
             params.addSystemMessage(skillsPrompt);
         }
 
-        String userContent = SkillsLoader.invokedSkillBody(prompt).orElse(prompt);
-        params.addUserMessage(userContent)
-                .addTool(ReadTool.tool())
+        List<String> skillBodies = SkillsLoader.invokedSkillBodies(prompt);
+        if (skillBodies.isEmpty()) {
+            params.addUserMessage(prompt);
+        } else {
+            for (String body : skillBodies) {
+                params.addUserMessage(body);
+            }
+        }
+
+        params.addTool(ReadTool.tool())
                 .addTool(WriteTool.tool())
                 .addTool(BashTool.tool());
 

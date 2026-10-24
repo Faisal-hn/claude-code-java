@@ -33,48 +33,73 @@ public final class SkillsLoader {
     }
 
     /**
-     * If the prompt starts with /skill-name, return that skill's body with argument placeholders substituted.
+     * Expand consecutive leading /skill tokens into substituted bodies that share the trailing argument text.
      */
-    public static Optional<String> invokedSkillBody(String prompt) {
-        SlashInvocation invocation = parseSlashInvocation(prompt);
-        if (invocation == null) {
-            return Optional.empty();
+    public static List<String> invokedSkillBodies(String prompt) {
+        StackedInvocation invocation = parseStackedInvocation(prompt);
+        if (invocation.skillNames().isEmpty()) {
+            return List.of();
         }
-        return loadSkillBody(invocation.skillName()).map(body -> substituteArguments(body, invocation));
+
+        List<String> bodies = new ArrayList<>();
+        for (String skillName : invocation.skillNames()) {
+            Optional<String> body = loadSkillBody(skillName);
+            if (body.isEmpty()) {
+                continue;
+            }
+            bodies.add(substituteArguments(body.get(), invocation.arguments(), invocation.positional()));
+        }
+        return bodies;
     }
 
-    private static SlashInvocation parseSlashInvocation(String prompt) {
+    private static StackedInvocation parseStackedInvocation(String prompt) {
         String trimmed = prompt.trim();
-        if (!trimmed.startsWith("/")) {
-            return null;
-        }
-        String rest = trimmed.substring(1).trim();
-        if (rest.isEmpty()) {
-            return null;
+        if (trimmed.isEmpty()) {
+            return new StackedInvocation(List.of(), "", List.of());
         }
 
-        int space = rest.indexOf(' ');
-        if (space < 0) {
-            return new SlashInvocation(rest, "", List.of());
+        String[] tokens = trimmed.split("\\s+");
+        List<String> skillNames = new ArrayList<>();
+        int index = 0;
+        while (index < tokens.length) {
+            String token = tokens[index];
+            if (!token.startsWith("/") || token.length() == 1) {
+                break;
+            }
+            String skillName = token.substring(1);
+            if (!skillExists(skillName)) {
+                break;
+            }
+            skillNames.add(skillName);
+            index++;
         }
 
-        String skillName = rest.substring(0, space);
-        String arguments = rest.substring(space + 1).trim();
+        String arguments = index >= tokens.length
+                ? ""
+                : String.join(" ", Arrays.copyOfRange(tokens, index, tokens.length));
         List<String> positional = arguments.isEmpty()
                 ? List.of()
                 : Arrays.asList(arguments.split("\\s+"));
-        return new SlashInvocation(skillName, arguments, positional);
+        return new StackedInvocation(skillNames, arguments, positional);
     }
 
-    private static String substituteArguments(String body, SlashInvocation invocation) {
+    private static boolean skillExists(String skillName) {
+        Path skillMd = Path.of(System.getProperty("user.dir"))
+                .resolve(SKILLS_DIR)
+                .resolve(skillName)
+                .resolve("SKILL.md");
+        return Files.isRegularFile(skillMd);
+    }
+
+    private static String substituteArguments(String body, String arguments, List<String> positional) {
         String result = replaceAll(ARGUMENTS_INDEX, body, matcher -> {
             int index = Integer.parseInt(matcher.group(1));
-            return positionalArg(invocation.positional(), index);
+            return positionalArg(positional, index);
         });
-        result = result.replace("$ARGUMENTS", invocation.arguments());
+        result = result.replace("$ARGUMENTS", arguments);
         return replaceAll(POSITIONAL, result, matcher -> {
             int index = Integer.parseInt(matcher.group(1));
-            return positionalArg(invocation.positional(), index);
+            return positionalArg(positional, index);
         });
     }
 
@@ -181,7 +206,7 @@ public final class SkillsLoader {
         }
     }
 
-    private record SlashInvocation(String skillName, String arguments, List<String> positional) {}
+    private record StackedInvocation(List<String> skillNames, String arguments, List<String> positional) {}
 
     private record Skill(String name, String description) {}
 }
