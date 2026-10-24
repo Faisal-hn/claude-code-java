@@ -2,6 +2,10 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.chat.completions.ChatCompletionMessage;
+import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
+
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
@@ -42,7 +46,12 @@ public class Main {
         // You can use print statements as follows for debugging, they'll be visible when running tests.
         System.err.println("Logs from your program will appear here!");
 
-        // TODO: Uncomment the line below to pass the first stage
-        System.out.print(response.choices().get(0).message().content().orElse(""));
+        ChatCompletionMessage message = response.choices().get(0).message();
+        List<ChatCompletionMessageToolCall> toolCalls = message.toolCalls().orElse(List.of());
+        if (toolCalls.isEmpty()) {
+            System.out.print(message.content().orElse(""));
+        } else {
+            System.out.print(ReadTool.execute(toolCalls.get(0)));
+        }
     }
 }
