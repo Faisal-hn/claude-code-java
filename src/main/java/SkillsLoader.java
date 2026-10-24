@@ -5,12 +5,17 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class SkillsLoader {
     private static final Path SKILLS_DIR = Path.of(".claude", "skills");
+    private static final Pattern ARGUMENTS_INDEX = Pattern.compile("\\$ARGUMENTS\\[(\\d+)]");
+    private static final Pattern POSITIONAL = Pattern.compile("\\$(\\d+)");
 
     private SkillsLoader() {}
 
@@ -28,17 +33,17 @@ public final class SkillsLoader {
     }
 
     /**
-     * If the prompt starts with /skill-name, return that skill's SKILL.md body (no frontmatter).
+     * If the prompt starts with /skill-name, return that skill's body with argument placeholders substituted.
      */
     public static Optional<String> invokedSkillBody(String prompt) {
-        String skillName = parseSlashSkillName(prompt);
-        if (skillName == null) {
+        SlashInvocation invocation = parseSlashInvocation(prompt);
+        if (invocation == null) {
             return Optional.empty();
         }
-        return loadSkillBody(skillName);
+        return loadSkillBody(invocation.skillName()).map(body -> substituteArguments(body, invocation));
     }
 
-    private static String parseSlashSkillName(String prompt) {
+    private static SlashInvocation parseSlashInvocation(String prompt) {
         String trimmed = prompt.trim();
         if (!trimmed.startsWith("/")) {
             return null;
@@ -47,8 +52,47 @@ public final class SkillsLoader {
         if (rest.isEmpty()) {
             return null;
         }
+
         int space = rest.indexOf(' ');
-        return space < 0 ? rest : rest.substring(0, space);
+        if (space < 0) {
+            return new SlashInvocation(rest, "", List.of());
+        }
+
+        String skillName = rest.substring(0, space);
+        String arguments = rest.substring(space + 1).trim();
+        List<String> positional = arguments.isEmpty()
+                ? List.of()
+                : Arrays.asList(arguments.split("\\s+"));
+        return new SlashInvocation(skillName, arguments, positional);
+    }
+
+    private static String substituteArguments(String body, SlashInvocation invocation) {
+        String result = replaceAll(ARGUMENTS_INDEX, body, matcher -> {
+            int index = Integer.parseInt(matcher.group(1));
+            return positionalArg(invocation.positional(), index);
+        });
+        result = result.replace("$ARGUMENTS", invocation.arguments());
+        return replaceAll(POSITIONAL, result, matcher -> {
+            int index = Integer.parseInt(matcher.group(1));
+            return positionalArg(invocation.positional(), index);
+        });
+    }
+
+    private static String positionalArg(List<String> positional, int index) {
+        if (index < 0 || index >= positional.size()) {
+            return "";
+        }
+        return positional.get(index);
+    }
+
+    private static String replaceAll(Pattern pattern, String input, java.util.function.Function<Matcher, String> replacer) {
+        Matcher matcher = pattern.matcher(input);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacer.apply(matcher)));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     private static Optional<String> loadSkillBody(String skillName) {
@@ -136,6 +180,8 @@ public final class SkillsLoader {
             throw new RuntimeException("failed to read skill: " + skillMd, e);
         }
     }
+
+    private record SlashInvocation(String skillName, String arguments, List<String> positional) {}
 
     private record Skill(String name, String description) {}
 }
