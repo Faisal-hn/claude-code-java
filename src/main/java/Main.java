@@ -36,8 +36,14 @@ public class Main {
         System.err.println("Logs from your program will appear here!");
 
         ChatCompletionCreateParams.Builder params = ChatCompletionCreateParams.builder()
-                .model("anthropic/claude-haiku-4.5")
-                .addUserMessage(prompt)
+                .model("anthropic/claude-haiku-4.5");
+
+        String skillsPrompt = SkillsLoader.systemPrompt();
+        if (!skillsPrompt.isEmpty()) {
+            params.addSystemMessage(skillsPrompt);
+        }
+
+        params.addUserMessage(prompt)
                 .addTool(ReadTool.tool())
                 .addTool(WriteTool.tool())
                 .addTool(BashTool.tool());
