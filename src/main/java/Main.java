@@ -54,7 +54,8 @@ public class Main {
 
         params.addTool(ReadTool.tool())
                 .addTool(WriteTool.tool())
-                .addTool(BashTool.tool());
+                .addTool(BashTool.tool())
+                .addTool(SkillTool.tool());
 
         while (true) {
             ChatCompletion response = client.chat().completions().create(params.build());
@@ -78,6 +79,7 @@ public class Main {
                     case "Read" -> ReadTool.execute(toolCall);
                     case "Write" -> WriteTool.execute(toolCall);
                     case "Bash" -> BashTool.execute(toolCall);
+                    case "Skill" -> SkillTool.execute(toolCall);
                     default -> throw new IllegalArgumentException("unsupported tool: " + name);
                 };
                 params.addMessage(ChatCompletionToolMessageParam.builder()

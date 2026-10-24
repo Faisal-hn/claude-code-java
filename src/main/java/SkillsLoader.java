@@ -29,7 +29,26 @@ public final class SkillsLoader {
         for (Skill skill : skills) {
             prompt.append("\n- ").append(skill.name()).append(": ").append(skill.description());
         }
+        prompt.append("\n\nIf a skill matches the user's request, call the Skill tool with its name")
+                .append("\nand follow the instructions it returns.");
         return prompt.toString();
+    }
+
+    /**
+     * Load a skill body for the Skill tool, with optional args substituted and location header applied.
+     */
+    public static String loadSkillContent(String skillName, String args) {
+        Optional<String> body = loadSkillBody(skillName);
+        if (body.isEmpty()) {
+            return "Error: skill not found: " + skillName;
+        }
+
+        String arguments = args == null ? "" : args.trim();
+        List<String> positional = arguments.isEmpty()
+                ? List.of()
+                : Arrays.asList(arguments.split("\\s+"));
+        String substituted = substituteArguments(body.get(), arguments, positional);
+        return withSkillLocation(skillName, substituted);
     }
 
     /**
