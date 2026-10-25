@@ -20,6 +20,10 @@ public final class SkillsLoader {
     private SkillsLoader() {}
 
     public static String systemPrompt() {
+        return systemPrompt(true);
+    }
+
+    public static String systemPrompt(boolean adviseSkillTool) {
         List<Skill> skills = loadSkills();
         if (skills.isEmpty()) {
             return "";
@@ -29,8 +33,13 @@ public final class SkillsLoader {
         for (Skill skill : skills) {
             prompt.append("\n- ").append(skill.name()).append(": ").append(skill.description());
         }
-        prompt.append("\n\nIf a skill matches the user's request, call the Skill tool with its name")
-                .append("\nand follow the instructions it returns.");
+        if (adviseSkillTool) {
+            prompt.append("\n\nIf a skill matches the user's request, call the Skill tool with its name")
+                    .append("\nand follow the instructions it returns.");
+        } else {
+            prompt.append("\n\nSkill instructions are already included in the user messages.")
+                    .append("\nFollow them exactly. Do not add any extra commentary.");
+        }
         return prompt.toString();
     }
 

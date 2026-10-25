@@ -34,24 +34,28 @@ public class Main {
         ChatCompletionCreateParams.Builder params = ChatCompletionCreateParams.builder()
                 .model("anthropic/claude-haiku-4.5");
 
-        String skillsPrompt = SkillsLoader.systemPrompt();
+        List<String> skillBodies = SkillsLoader.invokedSkillBodies(prompt);
+        boolean slashInvoked = !skillBodies.isEmpty();
+
+        String skillsPrompt = SkillsLoader.systemPrompt(!slashInvoked);
         if (!skillsPrompt.isEmpty()) {
             params.addSystemMessage(skillsPrompt);
         }
 
-        List<String> skillBodies = SkillsLoader.invokedSkillBodies(prompt);
-        if (skillBodies.isEmpty()) {
-            params.addUserMessage(prompt);
-        } else {
+        if (slashInvoked) {
             for (String body : skillBodies) {
                 params.addUserMessage(body);
             }
+        } else {
+            params.addUserMessage(prompt);
         }
 
         params.addTool(ReadTool.tool())
                 .addTool(WriteTool.tool())
-                .addTool(BashTool.tool())
-                .addTool(SkillTool.tool());
+                .addTool(BashTool.tool());
+        if (!slashInvoked) {
+            params.addTool(SkillTool.tool());
+        }
 
         System.out.print(AgentLoop.run(client, params));
     }
