@@ -34,21 +34,35 @@ public final class SkillsLoader {
         return prompt.toString();
     }
 
+    public static boolean isFork(String skillName) {
+        return findSkill(skillName).map(Skill::fork).orElse(false);
+    }
+
     /**
      * Load a skill body for the Skill tool, with optional args substituted and location header applied.
      */
     public static String loadSkillContent(String skillName, String args) {
+        Optional<String> substituted = loadSubstitutedBody(skillName, args);
+        if (substituted.isEmpty()) {
+            return "Error: skill not found: " + skillName;
+        }
+        return withSkillLocation(skillName, substituted.get());
+    }
+
+    /**
+     * Load a substituted skill body without the location header (for subagent prompts).
+     */
+    public static Optional<String> loadSubstitutedBody(String skillName, String args) {
         Optional<String> body = loadSkillBody(skillName);
         if (body.isEmpty()) {
-            return "Error: skill not found: " + skillName;
+            return Optional.empty();
         }
 
         String arguments = args == null ? "" : args.trim();
         List<String> positional = arguments.isEmpty()
                 ? List.of()
                 : Arrays.asList(arguments.split("\\s+"));
-        String substituted = substituteArguments(body.get(), arguments, positional);
-        return withSkillLocation(skillName, substituted);
+        return Optional.of(substituteArguments(body.get(), arguments, positional));
     }
 
     /**
@@ -95,6 +109,14 @@ public final class SkillsLoader {
             }
             String skillName = token.substring(1);
             if (!skillExists(skillName)) {
+                break;
+            }
+            if (isFork(skillName)) {
+                // Forked skills end a stacking run and are never expanded alongside another.
+                if (skillNames.isEmpty()) {
+                    skillNames.add(skillName);
+                    index++;
+                }
                 break;
             }
             skillNames.add(skillName);
@@ -227,13 +249,21 @@ public final class SkillsLoader {
             if (description.isEmpty()) {
                 return null;
             }
-            return new Skill(folderName, description);
+            Object contextValue = map.get("context");
+            boolean fork = contextValue != null && "fork".equals(contextValue.toString().trim());
+            return new Skill(folderName, description, fork);
         } catch (IOException e) {
             throw new RuntimeException("failed to read skill: " + skillMd, e);
         }
     }
 
+    private static Optional<Skill> findSkill(String skillName) {
+        return loadSkills().stream()
+                .filter(skill -> skill.name().equals(skillName))
+                .findFirst();
+    }
+
     private record StackedInvocation(List<String> skillNames, String arguments, List<String> positional) {}
 
-    private record Skill(String name, String description) {}
+    private record Skill(String name, String description, boolean fork) {}
 }
